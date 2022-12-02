@@ -4,19 +4,31 @@
 
 Create an Enterprise-PKI can be super easy. Take a look at this  https://github.com/Alceatraz/LitePKI
 
-## Config
+## Setup
+
+You need Nexus OSS:
 
 - Create repository with type "docker-proxy" and name as what ever you like and upstream you need
 - Create repository with type "docker-hosted" and named as "docker-hosted"
 - Create repository with type "docker-group" and named as "docker-group"
 - Add all repository into "docker-group"
 
-- You need nginx for:
-- http to https transform
-- single port need URL rewrite
+You can change repository name:
 
-> Non-relative config section omitted.  
-> In case if you don't like the name of "docker-hosted" and "docker-group". You can change the config.
+| header              | mean                             |
+|---------------------|----------------------------------|
+| OCI-Server          | Manifest Proxy server url prefix |
+| OCI-Registry-Group  | Name of type "docker-group"      |
+| OCI-Registry-Hosted | Name of type "docker-hosted"     |
+
+## Config
+
+You need nginx for:
+
+- http to https transform
+- traffic routing to nexus or proxy
+
+> Non-relative config section omitted.
 
 ```nginx
 http {
@@ -82,4 +94,22 @@ http {
         }
     }
 }
+```
+
+## Service
+
+```shell
+cat > /usr/lib/systemd/system/manifest-proxy.service << EOF
+[Unit]
+Description=ManifestProxy - Best Nexus OSS companion
+Requires=network.target
+After=network.target
+[Service]
+Type=simple
+ExecStart=/opt/manifest-proxy/sbin/manifest-proxy
+[Install]
+WantedBy=multi-user.target
+EOF
+systemctl daemon-reload
+systemctl enable --now manifest-proxy
 ```

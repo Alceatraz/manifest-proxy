@@ -31,68 +31,75 @@ You need nginx for:
 > Non-relative config section omitted.
 
 ```nginx
-http {
+set $REPOSITORY_GROUP 'docker-group';
+set $REPOSITORY_HOSTED 'docker-hosted';
 
-    gzip off;
+set $repository_name $REPOSITORY_GROUP;
 
-    client_max_body_size 8192M;
+# Push step 1
+location ~ '^/v2/(.*?)/blobs/uploads/$' {
+	set $repository_name $REPOSITORY_HOSTED;
+	rewrite ^/(.*)$ /repository/$repository_name/$1;
+}
 
-    server {
+# Push step 2
+location ~ '^/v2/(.*?)/blobs/uploads/.*?$' {
+	set $repository_name $REPOSITORY_HOSTED;
+	rewrite ^/(.*)$ /repository/$repository_name/$1;
+}
 
-        set $repository_name docker-group;
+# Push step 3
+location ~ '^/v2/(.*?)/blobs/uploads/.*?digest=sha256.*$' {
+	set $repository_name $REPOSITORY_HOSTED;
+	rewrite ^/(.*)$ /repository/$repository_name/$1;
+}
 
-        location ~ '^/v2/$' {
-            rewrite ^/(.*)$ /repository/$repository_name/$1;
-        }
+# Pull | Push step 4
+location ~ '^/v2/(.*?)/manifests/.*?$' {
+	if ($request_method ~* PUT) {
+		set $repository_name $REPOSITORY_HOSTED;
+	}
+	rewrite ^/(.*)$ /repository/$repository_name/$1;
+}
 
-        location ~ '^/v2/(.*?)/manifests/.*?$' {
-            if ($request_method ~* PUT) {
-                set $repository_name docker-hosted;
-            }
-            rewrite ^/(.*)$ /repository/$repository_name/$1;
-        }
+# Pull
+location ~ '^/v2/(.*?)/blobs/sha256.*?$' {
+	rewrite ^/(.*)$ /repository/$repository_name/$1;
+}
 
-        location ~ '^/v2/(.*?)/blobs/sha256.*?$' {
-            rewrite ^/(.*)$ /repository/$repository_name/$1;
-        }
+# Token
+location ~ '^/v2/token$' {
+	rewrite ^/(.*)$ /repository/$repository_name/$1;
+	proxy_pass 'http://127.0.0.1:8081';
+}
 
-        location ~ '^/v2/(.*?)/blobs/uploads/$' {
-            set $repository_name docker-hosted;
-            rewrite ^/(.*)$ /repository/$repository_name/$1;
-        }
+# Login
+location ~ '^/v2/$' {
+	rewrite ^/(.*)$ /repository/$repository_name/$1;
+	proxy_pass 'http://127.0.0.1:8081';
+}
 
-        location ~ '^/v2/(.*?)/blobs/uploads/.*?$' {
-            set $repository_name docker-hosted;
-            rewrite ^/(.*)$ /repository/$repository_name/$1;
-        }
+# NXPM
+location ~ ^/repository/docker-hosted/v2/.*/manifests {
+	proxy_pass 'http://127.0.0.1:8080';
+	proxy_set_header Host $http_host;
+	proxy_set_header X-Real-IP $remote_addr;
+	proxy_set_header X-Forwarded-Proto $scheme;
+	proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+	proxy_max_temp_file_size 0;
+	# proxy_set_header OCI-Server 'http://127.0.0.1:8081';
+	# proxy_set_header OCI-Registry-Group 'docker-group';
+	# proxy_set_header OCI-Registry-Hosted 'docker-hosted';
+}
 
-        location ~ '^/v2/(.*?)/blobs/uploads/.*?digest=sha256.*$' {
-            set $repository_name docker-hosted;
-            rewrite ^/(.*)$ /repository/$repository_name/$1;
-        }
-
-        location /repository {
-            proxy_pass http://127.0.0.1:8081;
-            proxy_set_header Host $http_host;
-            proxy_set_header X-Real-IP $remote_addr;
-            proxy_set_header X-Forwarded-Proto $scheme;
-            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-            proxy_max_temp_file_size 0;
-        }
-        
-        location ~ ^/repository/docker-hosted/v2/.*/manifests {
-            proxy_pass http://127.0.0.1:8080;
-            proxy_set_header Host $http_host;
-            proxy_set_header X-Real-IP $remote_addr;
-            proxy_set_header X-Forwarded-Proto $scheme;
-            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-            proxy_max_temp_file_size 0;
-            
-            # proxy_set_header OCI-Server 'http://127.0.0.1:8081';
-            # proxy_set_header OCI-Registry-Group 'docker-group';
-            # proxy_set_header OCI-Registry-Hosted 'docker-hosted';
-        }
-    }
+# NXRM
+location / {
+	proxy_pass 'http://127.0.0.1:8081';
+	proxy_set_header Host $http_host;
+	proxy_set_header X-Real-IP $remote_addr;
+	proxy_set_header X-Forwarded-Proto $scheme;
+	proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+	proxy_max_temp_file_size 0;
 }
 ```
 

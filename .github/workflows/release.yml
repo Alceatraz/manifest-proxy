@@ -1,0 +1,34 @@
+name: release
+
+on: workflow_dispatch
+
+jobs:
+
+  release:
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+    - uses: actions/checkout@v4
+    - uses: graalvm/setup-graalvm@v1
+      with:
+        java-version: '21'
+        native-image-musl: 'true'
+
+    - run: bash +x ./mvnw install
+
+    - name: Upload a Build Artifact
+      uses: actions/upload-artifact@v4.4.3
+      with:
+        name: target/*.jar
+
+#    - uses: docker/login-action@v3
+#      with:
+#        username: ${{ secrets.DOCKERHUB_USERNAME }}
+#        password: ${{ secrets.DOCKERHUB_PASSWORD }}
+#    - uses: docker/build-push-action@v5
+#      with:
+#        context: .
+#        push: true
+#        tags: zwischenspiell/liteoss:latest
